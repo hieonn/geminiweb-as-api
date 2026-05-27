@@ -1,0 +1,18 @@
+{
+  "name": "gemini-llm-api-server",
+  "version": "1.0.0",
+  "description": "Headless Chrome Gemini Automation API Server",
+  "main": "server.js",
+  "dependencies": {
+    "adm-zip": "^0.5.17",
+    "archiver": "^8.0.0",
+    "axios": "^1.16.1",
+    "commander": "^14.0.3",
+    "decompress": "^4.2.1",
+    "express": "^4.19.2",
+    "form-data": "^4.0.5",
+    "fs-extra": "^11.3.5",
+    "multer": "^1.4.5-lts.1",
+    "puppeteer": "^22.6.0"
+  }
+}

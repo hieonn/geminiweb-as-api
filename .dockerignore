@@ -1,0 +1,7 @@
+# 💡 도커 빌드 시 컨테이너 내부로 절대 읽어 들이지 않을 경로 지정
+node_modules
+uploads
+remote-profiles
+.git
+*.zip
+sessions.json

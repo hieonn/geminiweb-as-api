@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  gemini-api:
+    build: .
+    container_name: gemini-api-standalone
+    ports:
+      - "3030:3030"
+    volumes:
+      - ./remote-profiles:/app/remote-profiles
+      - ./uploads:/app/uploads
+    restart: always
