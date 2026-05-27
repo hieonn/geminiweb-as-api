@@ -1,7 +1,7 @@
 # GeminiWeb-As-API 🚀
 
 Transform the Google Gemini Web interface into a **100% OpenAI-compatible API gateway** using your active browser session.
-공식 API 키 없이 로컬 브라우저 세션을 이식하여, 구글 제미니 웹 인터페이스를 **OpenAI 호환 API 게이트웨이**로 변환해 주는 도구입니다.
+공식 API 키 없이 로컬 브라우저 세션을 이식하여, 구글 제미나이 웹 인터페이스를 **OpenAI 호환 API 게이트웨이**로 변환해 주는 도구입니다.
 
 Just use in your private test use. Don't open to public.
 개인적인 테스트 용도로만 쓰세요. 절대로 public에 공개하면 안됩니다. 
@@ -65,7 +65,7 @@ sudo bash gemini_init_server.sh
 ```
 
 #### 2) 로컬 PC 설정 (노드 스크립트 1개 실행)
-구글 제미니가 로그인되어 있는 내 PC(Mac/Windows)에도 프로젝트를 동일하게 clone 한 뒤, 패키지를 설치하고 주입 스크립트를 실행하여 크롬 인증 세션을 서버로 보냅니다.
+구글 제미나이가 로그인되어 있는 내 PC(Mac/Windows)에도 프로젝트를 동일하게 clone 한 뒤, 패키지를 설치하고 주입 스크립트를 실행하여 크롬 인증 세션을 서버로 보냅니다.
 
 ```text
 git clone https://github.com/hieonn/geminiweb-as-api.git](https://github.com/hieonn/geminiweb-as-api.git)
@@ -76,7 +76,7 @@ node gemini_init_client.js --profile "Profile 1" --session "gemini-web-agent" --
 ```
 
 ### 실전 사용법 (curl)
-준비가 끝났습니다. 이제 OpenAI 규격 그대로 서버 IP를 향해 질문을 던지면 제미니의 답변을 받아볼 수 있습니다:
+준비가 끝났습니다. 이제 OpenAI 규격 그대로 서버 IP를 향해 질문을 던지면 제미나이의 답변을 받아볼 수 있습니다:
 
 ```text
 curl http://{remote server IP}/v1/chat/completions \
