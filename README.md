@@ -10,7 +10,7 @@ Just use in your private test use. Don't open to public.
 
 ## Core Requirement 
 
-You must **clone this repository on BOTH your Remote Server and Local Client (PC)**.
+You must **clone this repository on BOTH your Remote Server and Local Client (PC)**.  
 이 프로젝트는 **원격 서버(Remote Server)와 로컬 PC(Client) 양쪽 모두에 clone 해야 합니다.**
 
 ---
@@ -35,8 +35,9 @@ git clone https://github.com/hieonn/geminiweb-as-api.git
 cd geminiweb-as-api
 
 npm install
-node gemini_init_client.js --profile "Profile 1" --session "gemini-web-agent" --url "http://{remote IP}}"
+node gemini_init_client.js --session "gemini-web-agent" --url "http://{remote IP}}"
 ```
+You don't need to find Chrome Profile any more, client init will find the profile automatically
 
 ## 2. Usage (curl)
 Now you can make standard OpenAI-compatible requests to your gateway server:
@@ -72,8 +73,9 @@ git clone https://github.com/hieonn/geminiweb-as-api.git](https://github.com/hie
 cd geminiweb-as-api
 
 npm install
-node gemini_init_client.js --profile "Profile 1" --session "gemini-web-agent" --url "http://{remote server IP}"
+node gemini_init_client.js --session "gemini-web-agent" --url "http://{remote server IP}"
 ```
+더이상 프로파일을 찾아서 지정할 필요가 없습니다. init 과정에서 적절한 프로파일을 자동으로 찾아줄 것입니다. 
 
 ### 실전 사용법 (curl)
 준비가 끝났습니다. 이제 OpenAI 규격 그대로 서버 IP를 향해 질문을 던지면 제미나이의 답변을 받아볼 수 있습니다:
