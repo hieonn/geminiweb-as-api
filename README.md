@@ -52,6 +52,28 @@ curl http://{remote server IP}/v1/chat/completions \
     ]
   }'
 ```
+```
+from langchain_openai import ChatOpenAI
+
+# 1. Configure the ChatOpenAI object
+llm = ChatOpenAI(
+    # Corresponds to the -d '{"model": "gemini-web-agent"}' part in curl
+    model="gemini-web-agent", 
+    # Set the endpoint address from curl's http://{IP}/v1/chat/completions 
+    # (/chat/completions is automatically appended by the library)
+    openai_api_base="http://{ip}/v1", 
+    # Even if the custom server doesn't require an API key, 
+    # it's safer to provide a dummy value to pass internal library validation.
+    openai_api_key="dummy-key-if-not-required",
+    temperature=0.7
+)
+
+# 2. Invoke the model
+response = llm.invoke("Are you good at using tools if I provide them to you?")
+
+# 3. Print the result
+print(response.content)
+```
 
 ## 1. 설치 가이드
 
@@ -89,6 +111,29 @@ curl http://{remote server IP}/v1/chat/completions \
       {"role": "user", "content": "안녕하세요, 오늘 날씨에 대해 분석해 주세요."}
     ]
   }'
+```
+
+### 실전사용법 (LangChain)
+
+```
+from langchain_openai import ChatOpenAI
+
+# 1. ChatOpenAI 객체 설정
+llm = ChatOpenAI(
+    # curl의 -d '{"model": "gemini-web-agent"}' 부분 대응
+    model="gemini-web-agent", 
+    # curl의 http://IP/v1/chat/completions 에서 엔드포인트 주소 설정 (/chat/completions는 자동으로 붙습니다)
+    openai_api_base="http://{ip}/v1", 
+    # 커스텀 서버가 별도의 API Key를 요구하지 않더라도, 라이브러리 내부 검증을 통과하기 위해 dummy 값이라도 넣어주는 것이 안전합니다.
+    openai_api_key="dummy-key-if-not-required",
+    temperature=0.7
+)
+
+# 2. 호출
+response = llm.invoke("너는 tool을 잘 쓸 수 있니? 내가 주면?.")
+
+# 3. 결과 확인
+print(response.content)
 ```
 
 ### License
