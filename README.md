@@ -52,6 +52,9 @@ curl http://{remote server IP}/v1/chat/completions \
     ]
   }'
 ```
+
+### Usage (LangChain, OpenAI compatible)
+
 ```
 from langchain_openai import ChatOpenAI
 
