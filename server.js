@@ -61,6 +61,7 @@ const SEND_SELECTORS = [
 ];
 
 // 스마트 타이핑 & 전송 캡슐화 함수
+// 스마트 타이핑 & 전송 캡슐화 함수 (개행 문자 오작동 방지 완제품 버전)
 async function typeAndSend(page, text) {
   let inputSelector = null;
   for (const selector of INPUT_SELECTORS) {
@@ -72,35 +73,53 @@ async function typeAndSend(page, text) {
   }
 
   if (!inputSelector) {
-    // 💡 디버깅용 현재 브라우저 화면 스크린샷 캡처
     const debugPath = path.join(__dirname, 'uploads', `debug-selector-failed-${Date.now()}.png`);
     await page.screenshot({ path: debugPath }).catch(() => {});
     throw new Error(`[UI 에러] 제미니 입력창을 찾을 수 없습니다. 로그인이 풀렸거나 화면 구조가 변경되었습니다. 스크린샷 저장됨: ${debugPath}`);
   }
 
+  // 1. 입력창 클릭하여 포커스 주기
   await page.click(inputSelector);
-  // 기존 텍스트 청소 후 입력
-  await page.evaluate((sel) => {
-    const el = document.querySelector(sel);
-    if (el) el.value = '';
-  }, inputSelector);
-  
-  await page.type(inputSelector, text);
 
+  // 2. [핵심 수정] page.type 대신 브라우저 컨텍스트 내에서 value를 통째로 주입
+  // 이렇게 하면 \n이 있더라도 엔터가 처박히지 않고 텍스트 그대로 입력창에 안착합니다.
+  await page.evaluate((sel, content) => {
+    const el = document.querySelector(sel);
+    if (el) {
+      // contenteditable 속성인 엘리먼트와 일반 textarea 둘 다 방어하기 위한 로직
+      if (el.tagName === 'DIV' || el.getAttribute('contenteditable') === 'true') {
+        el.innerText = content;
+      } else {
+        el.value = content;
+      }
+      
+      // 중요: 값이 변경되었음을 리액트/웹 페이지 엔진에 강제로 알림 (이벤트 트리거)
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }, inputSelector, text);
+
+  // 3. 잠시 브라우저가 이벤트를 소화할 수 있도록 미세한 딜레이 (안전장치)
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  // 4. 전송 버튼 클릭 루프 진행
   let sendButtonFound = false;
   for (const selector of SEND_SELECTORS) {
     try {
+      // 버튼이 클릭 가능한 상태인지 확인 후 클릭
+      await page.waitForSelector(selector, { visible: true, timeout: 2000 });
       await page.click(selector);
       sendButtonFound = true;
       break;
     } catch (e) {}
   }
 
+  // 5. 만약 전송 버튼 매칭이 실패했다면 최종적으로 엔터 키 시그널 발송
   if (!sendButtonFound) {
+    console.log("⚠️ 전송 버튼을 찾지 못해 키보드 엔터로 전송을 시도합니다.");
     await page.keyboard.press('Enter');
   }
 }
-
 
 // [API 1] 클라이언트 크롬 세션 프로필 주입 수신
 app.post('/api/init', upload.single('profileZip'), async (req, res) => {
