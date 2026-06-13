@@ -244,6 +244,36 @@ app.post('/v1/chat/completions', async (req, res) => {
   }
 });
 
+// 🔍 [디버깅 전용] 클라이언트가 보내는 raw 데이터를 그대로 반사(Mirror)하는 엔드포인트
+app.post('/v1/t/echo/chat/completions', (req, res) => {
+  console.log("\n=================== 📥 ECHO DEBUG START ===================");
+  console.log(`Time: ${new Date().toLocaleString()}`);
+  console.log("Headers:", JSON.stringify(req.headers, null, 2));
+  console.log("Body:", JSON.stringify(req.body, null, 2));
+  console.log("===========================================================\n");
+
+  // 클라이언트가 보낸 헤더와 바디 구조를 그대로 JSON으로 반환합니다.
+  res.json({
+    debug_message: "This is an echo response for debugging purposes. The server received your request and is reflecting the data back to you.",
+    received_headers: req.headers,
+    received_body: req.body,
+    
+    // 💡 LangChain ChatOpenAI가 파싱 에러를 내며 뻗지 않도록 최소한의 OpenAI 규격도 함께 얹어줍니다.
+    id: `chatcmpl-echo-${Date.now()}`,
+    object: "chat.completion",
+    created: Math.floor(Date.now() / 1000),
+    model: req.body.model || "echo-debug",
+    choices: [{
+      index: 0,
+      message: {
+        role: "assistant",
+        content: `echo :\n\n${JSON.stringify(req.body, null, 2)}`
+      },
+      finish_reason: "stop"
+    }]
+  });
+});
+
 
 // 정밀 답변 파싱 유틸리티
 async function waitForGeminiReply(page) {
