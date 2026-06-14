@@ -62,6 +62,7 @@ const SEND_SELECTORS = [
 
 // 스마트 타이핑 & 전송 캡슐화 함수
 // 스마트 타이핑 & 전송 캡슐화 함수 (개행 문자 오작동 방지 완제품 버전)
+// 스마트 타이핑 & 전송 캡슐화 함수 (인간 행동 모방 위장 버전)
 async function typeAndSend(page, text) {
   let inputSelector = null;
   for (const selector of INPUT_SELECTORS) {
@@ -80,41 +81,57 @@ async function typeAndSend(page, text) {
 
   // 1. 입력창 클릭하여 포커스 주기
   await page.click(inputSelector);
+  // 마우스 클릭 후 사람이 다음 행동을 하기 전까지의 무작위 미세 대기 (0.2초~0.5초)
+  await new Promise(resolve => setTimeout(resolve, Math.random() * 300 + 200));
 
-  // 2. [핵심 수정] page.type 대신 브라우저 컨텍스트 내에서 value를 통째로 주입
-  // 이렇게 하면 \n이 있더라도 엔터가 처박히지 않고 텍스트 그대로 입력창에 안착합니다.
-  await page.evaluate((sel, content) => {
+  // 💡 [추가] 2. 인간 모방을 위한 미끼 타이핑 (첫 2글자 분리)
+  // 입력할 전체 텍스트가 너무 짧으면 그냥 다 치고, 길면 앞의 2글자만 떼어냅니다.
+  const prefixLength = Math.min(text.length, 2);
+  const prefixText = text.substring(0, prefixLength);
+  const remainingText = text.substring(prefixLength);
+
+  if (prefixLength > 0) {
+    // delay 옵션을 주면 글자마다 실제 타자를 치듯 간격(100ms~200ms 무작위)을 둡니다.
+    const typingSpeed = Math.floor(Math.random() * 100) + 100;
+    await page.type(inputSelector, prefixText, { delay: typingSpeed });
+    
+    // 타자를 다 치고 붙여넣기(Paste) 하기 전 잠깐 멈칫하는 인간적인 딜레이 (0.3초~0.6초)
+    await new Promise(resolve => setTimeout(resolve, Math.random() * 300 + 300));
+  }
+
+  // 3. 나머지 본문을 브라우저 컨텍스트 내부에서 이어 붙이기 (Paste 효과)
+  await page.evaluate((sel, remainingContent) => {
     const el = document.querySelector(sel);
     if (el) {
-      // contenteditable 속성인 엘리먼트와 일반 textarea 둘 다 방어하기 위한 로직
       if (el.tagName === 'DIV' || el.getAttribute('contenteditable') === 'true') {
-        el.innerText = content;
+        // 기존에 타이핑된 첫 2글자(innerText) 뒤에 나머지 본문을 자연스럽게 이어 붙임
+        el.innerText += remainingContent;
       } else {
-        el.value = content;
+        el.value += remainingContent;
       }
       
-      // 중요: 값이 변경되었음을 리액트/웹 페이지 엔진에 강제로 알림 (이벤트 트리거)
+      // 값이 완전히 변경되었음을 리액트 엔진에 통보
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
     }
-  }, inputSelector, text);
+  }, inputSelector, remainingText);
 
-  // 3. 잠시 브라우저가 이벤트를 소화할 수 있도록 미세한 딜레이 (안전장치)
-  await new Promise(resolve => setTimeout(resolve, 500));
+  // 4. 전송 버튼을 누르기 전 최종 생각을 정리하는 듯한 미세한 딜레이 (0.4초)
+  await new Promise(resolve => setTimeout(resolve, 400));
 
-  // 4. 전송 버튼 클릭 루프 진행
+  // 5. 전송 버튼 클릭 루프 진행
   let sendButtonFound = false;
   for (const selector of SEND_SELECTORS) {
     try {
-      // 버튼이 클릭 가능한 상태인지 확인 후 클릭
       await page.waitForSelector(selector, { visible: true, timeout: 2000 });
+      // 버튼 클릭도 단순 코드가 아니라 가상 마우스로 정확히 좌표 클릭
       await page.click(selector);
       sendButtonFound = true;
       break;
     } catch (e) {}
   }
 
-  // 5. 만약 전송 버튼 매칭이 실패했다면 최종적으로 엔터 키 시그널 발송
+  // 6. 만약 전송 버튼 매칭이 실패했다면 최종적으로 엔터 키 시그널 발송
   if (!sendButtonFound) {
     console.log("⚠️ 전송 버튼을 찾지 못해 키보드 엔터로 전송을 시도합니다.");
     await page.keyboard.press('Enter');
