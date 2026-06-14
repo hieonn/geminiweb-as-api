@@ -173,31 +173,36 @@ app.post('/api/init', upload.single('profileZip'), async (req, res) => {
 
 // [API 2] 표준 OpenAI 규격 호환 대화 라우트
 app.post('/v1/chat/completions', async (req, res) => {
-  const { model, messages } = req.body;
-  if (!messages || messages.length === 0) return res.status(400).json({ error: "messages가 없습니다." });
+  const { model, messages, tools } = req.body;
+  
+  // 💡 [안전 장치] messages 검증
+  if (!messages || messages.length === 0) {
+    return res.status(400).json({ error: "messages 배열이 비어있습니다." });
+  }
 
-  const sessionName = model || "default-session";
-  const lastMessage = messages[messages.length - 1];
-  const prompt = lastMessage.content; 
+  const sessionName = model || "default-session"; // 👈 1. sessionName 선언 복구
+  let prompt = messages[messages.length - 1].content; // 파이썬이 보낸 순수 질문
+
+  // 💡 [조건 확인] 최상위 패킷에 tools field가 존재하는지 검사
+  const isToolContext = (tools && Array.isArray(tools) && tools.length > 0);
+
+  if (isToolContext) {
+    console.log(`🔌 [인프라 작동] 툴 명세 감지됨. 백엔드에서 프롬프트 인젝션을 전개합니다.`);
+    
+    let injectedInstruction = `\n\n[SYSTEM INSTRUCTION: AVAILABLE TOOLS]\n`;
+    injectedInstruction += `You are NOT an assistant. You are a tool router. Your ONLY job is to select tools. You MUST NEVER answer questions or perform calculations.\n`;
+    injectedInstruction += `When a tool needs to be called, you MUST respond ONLY with a single JSON object inside a markdown code block.\n\n`;
+    injectedInstruction += `Available Tools Specification:\n${JSON.stringify(tools, null, 2)}\n\n`;
+    injectedInstruction += `Format for tool calling:\n\`\`\`json\n{\n    "name": "tool_name",\n    "arguments": {\n        "arg_name": "value"\n    }\n}\n\`\`\``;
+    injectedInstruction += `Do not write any conversations, explanations, or thoughts.`
+    injectedInstruction += `If no tools are required, reply normally in plain text.`
+
+    // 순수 질문 뒤에 시스템 지시문을 결합 (자동 인젝션)
+    prompt = prompt + injectedInstruction;
+  }
 
   try {
-    const sessions = await readSessions();
-    const formattedHistory = [];
-    
-    for (let i = 0; i < messages.length - 1; i++) {
-      const msg = messages[i];
-      const role = (msg.role === 'assistant' || msg.role === 'model') ? 'model' : 'user';
-      formattedHistory.push({ role, content: msg.content });
-    }
-    sessions[sessionName] = formattedHistory;
-    await saveSessions(sessions);
-
-    if (currentTab.page && currentTab.sessionName !== sessionName) {
-      await currentTab.page.close().catch(() => {});
-      currentTab.page = null;
-      currentTab.sessionName = null;
-    }
-
+    // 1. 브라우저 및 탭 초기화 검사
     if (!currentTab.page) {
       if (!globalBrowser) {
         throw new Error("크롬 브라우저가 기동되지 않았습니다. /api/init을 먼저 호출하세요.");
@@ -205,42 +210,65 @@ app.post('/v1/chat/completions', async (req, res) => {
       currentTab.page = await globalBrowser.newPage();
       currentTab.sessionName = sessionName;
       
-      // 창 크기를 넉넉하게 세팅하여 모바일 UI 변형 방지
       await currentTab.page.setViewport({ width: 1280, height: 800 });
       await currentTab.page.goto('https://gemini.google.com/app', { waitUntil: 'networkidle2' });
-
-      // 과거 맥락 동기화 주입
-      if (formattedHistory.length > 0) {
-        let contextPrompt = "[이전 대화 복구] 아래 기록을 인지하고 대기하세요.\n\n";
-        formattedHistory.forEach(msg => { contextPrompt += `${msg.role === 'user' ? 'User' : 'Gemini'}: ${msg.content}\n`; });
-        contextPrompt += "\n[인지 완료] 다음 메시지가 오면 이어서 답변하세요.";
-        
-        await typeAndSend(currentTab.page, contextPrompt);
-        await waitForGeminiReply(currentTab.page);
-      }
     }
 
     const page = currentTab.page;
-    // 최종 메인 질문 전송
+
+    // 💡 2. [복구] 제미니 입력창에 실제 전송하고 응답을 받아오는 핵심 로직
+    console.log("📝 제미니 창에 프롬프트 주입 중...");
     await typeAndSend(page, prompt);
-    
-    const replyText = await waitForGeminiReply(page);
+    const replyText = await waitForGeminiReply(page); 
 
-    sessions[sessionName].push({ role: "user", content: prompt });
-    sessions[sessionName].push({ role: "model", content: replyText });
-    await saveSessions(sessions);
+    // 기본 응답 스켈레톤 (일반 대화용)
+    let messagePayload = { role: "assistant", content: replyText, tool_calls: null };
+    let finishReason = "stop";
 
+    // 💡 [돌려줄 때 처리] 툴 콘텍스트였고 제미니가 JSON을 출력했다면 tool_calls에 정밀 매핑
+    if (isToolContext && replyText.includes('{') && replyText.includes('}')) {
+      try {
+        const jsonMatch = replyText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsedJson = JSON.parse(jsonMatch[0]);
+
+          if (parsedJson.name && parsedJson.arguments) {
+            console.log(`🎯 [가공 완료] 제미니 JSON 검증 성공 -> tool_calls 구조로 리턴 처리를 진행합니다.`);
+            
+            // 랭체인 표준 규격에 맞게 content는 비우고, tool_calls에 재배치하여 돌려줍니다.
+            messagePayload.content = null; 
+            messagePayload.tool_calls = [
+              {
+                id: `call_${Math.random().toString(36).substr(2, 9)}`,
+                type: "function",
+                function: {
+                  name: parsedJson.name,
+                  arguments: typeof parsedJson.arguments === 'string' 
+                    ? parsedJson.arguments 
+                    : JSON.stringify(parsedJson.arguments)
+                }
+              }
+            ];
+            finishReason = "tool_calls"; // 완벽한 종료 사인 세팅
+          }
+        }
+      } catch (e) {
+        console.log("⚠️ 제미니 출력물이 JSON 규격과 맞지 않아 일반 대화로 반환합니다.");
+      }
+    }
+
+    // 2. OpenAI 호환 최종 포맷으로 회신
     res.json({
       id: `chatcmpl-${Date.now()}`,
       object: "chat.completion",
       created: Math.floor(Date.now() / 1000),
-      model: sessionName,
-      choices: [{ index: 0, message: { role: "assistant", content: replyText }, finish_reason: "stop" }],
-      usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+      model: model,
+      choices: [{ index: 0, message: messagePayload, finish_reason: finishReason }]
     });
+
   } catch (error) {
-    console.error("❌ 대화 처리 중 에러:", error);
-    res.status(500).json({ error: { message: error.message } });
+    console.error("❌ 대화 처리 오류:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 
